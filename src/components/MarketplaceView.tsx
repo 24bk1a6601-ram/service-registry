@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Cpu, Search, Filter, ShieldCheck, Star, Zap, ExternalLink, Plus, Layers, ArrowRight, Tag, MapPin, Clock, DollarSign, Bot, Sparkles } from 'lucide-react';
 import { AgentIdentity, AgentService } from '../types';
 import { InvokeServiceModal } from './InvokeServiceModal';
+import { getLocalAgents, getLocalServices } from '../lib/clientFallbackStore';
 
 interface MarketplaceViewProps {
   onSelectServiceForSandbox: (serviceId: string) => void;
@@ -34,20 +35,34 @@ export const MarketplaceView: React.FC<MarketplaceViewProps> = ({
 
   const fetchMarketplaceData = async () => {
     setLoading(true);
+    let agentsData: AgentIdentity[] = [];
+    let servicesData: AgentService[] = [];
+
     try {
       const [agentsRes, servicesRes] = await Promise.all([
         fetch('/api/blockchain/agents'),
         fetch('/api/blockchain/services')
       ]);
-      const agentsData = await agentsRes.json();
-      const servicesData = await servicesRes.json();
-      setAgents(agentsData);
-      setServices(servicesData);
+      if (agentsRes.ok && servicesRes.ok) {
+        const aData = await agentsRes.json();
+        const sData = await servicesRes.json();
+        if (Array.isArray(aData) && aData.length > 0) agentsData = aData;
+        if (Array.isArray(sData) && sData.length > 0) servicesData = sData;
+      }
     } catch (err) {
-      console.error('Error fetching marketplace data:', err);
-    } finally {
-      setLoading(false);
+      console.warn('Backend API unreachable, utilizing client-side fallback store:', err);
     }
+
+    if (agentsData.length === 0) {
+      agentsData = getLocalAgents();
+    }
+    if (servicesData.length === 0) {
+      servicesData = getLocalServices();
+    }
+
+    setAgents(agentsData);
+    setServices(servicesData);
+    setLoading(false);
   };
 
   const filteredServices = services.filter((svc) => {
