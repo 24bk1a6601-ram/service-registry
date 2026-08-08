@@ -1,0 +1,8 @@
+{
+  "name": "Remix Service Registry",
+  "description": "Decentralized AI Agent Service Registry with x402 Payment Middleware, Smart Contracts, SIWE Wallet Auth, and Pay-Per-Use API Gateway",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
