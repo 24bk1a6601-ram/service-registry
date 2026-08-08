@@ -21,7 +21,11 @@ export default function App() {
     return 'algorand-testnet';
   });
   const [walletAddress, setWalletAddressState] = useState<string>(() => {
-    return localStorage.getItem('x402_wallet_address') || '0xF1b0...10F3';
+    const saved = localStorage.getItem('x402_wallet_address');
+    if (saved && saved !== '0xF1b0...10F3') {
+      return saved;
+    }
+    return '';
   });
   const [isSiweAuthenticated, setIsSiweAuthenticated] = useState<boolean>(() => {
     return localStorage.getItem('x402_siwe_authed') === 'true';
