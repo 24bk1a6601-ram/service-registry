@@ -362,7 +362,131 @@ export function saveLocalService(service: Partial<AgentService>): AgentService {
   return newService;
 }
 
-export function simulateAgentInvocation(serviceId: string, prompt: string) {
+export interface WalletTransactionRecord {
+  id: string;
+  txHash: string;
+  walletAddress: string;
+  walletType: string;
+  serviceId?: string;
+  serviceName: string;
+  actionType: 'x402 Micropayment' | 'Agent Registration' | 'Service Publishing' | 'SIWE Authentication';
+  amountFormatted: string;
+  amountWei?: string;
+  status: 'SETTLED' | 'CONFIRMED';
+  timestamp: number;
+  blockNumber: number;
+  network: string;
+  prompt?: string;
+  receiptHash: string;
+}
+
+export const SEED_TRANSACTIONS: WalletTransactionRecord[] = [
+  {
+    id: 'tx_seed_101',
+    txHash: '0x8f7a3b9c2d1e0f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a',
+    walletAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    walletType: 'Trust Wallet',
+    serviceId: '0x1000000000000000000000000000000000000000000000000000000000000001',
+    serviceName: "Today's Weather & Atmospheric Forecast API",
+    actionType: 'x402 Micropayment',
+    amountFormatted: '$0.01 (0.000003 ETH)',
+    amountWei: '3000000000000',
+    status: 'SETTLED',
+    timestamp: Date.now() - 3600000 * 2,
+    blockNumber: 18942105,
+    network: 'Base Sepolia',
+    prompt: 'Current temperature & rainfall probability forecast for Hyderabad, Telangana',
+    receiptHash: '0x3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b'
+  },
+  {
+    id: 'tx_seed_102',
+    txHash: '0x2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b',
+    walletAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    walletType: 'Trust Wallet',
+    serviceId: '0x7000000000000000000000000000000000000000000000000000000000000007',
+    serviceName: 'Solidity & Move Smart Contract Auditor API',
+    actionType: 'x402 Micropayment',
+    amountFormatted: '$0.01 (0.000003 ETH)',
+    amountWei: '3000000000000',
+    status: 'SETTLED',
+    timestamp: Date.now() - 3600000 * 6,
+    blockNumber: 18941980,
+    network: 'Base Sepolia',
+    prompt: 'Audit Solidity vault contract for reentrancy and access control',
+    receiptHash: '0x9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e'
+  },
+  {
+    id: 'tx_seed_103',
+    txHash: '0x11223344556677889900aabbccddeeff11223344556677889900aabbccddeeff',
+    walletAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    walletType: 'Trust Wallet',
+    serviceName: 'Sign-In with Ethereum (SIWE EIP-4361)',
+    actionType: 'SIWE Authentication',
+    amountFormatted: 'Gasless ($0.00)',
+    amountWei: '0',
+    status: 'CONFIRMED',
+    timestamp: Date.now() - 3600000 * 12,
+    blockNumber: 18941500,
+    network: 'Base Sepolia',
+    prompt: 'SIWE EIP-4361 challenge signature verification',
+    receiptHash: '0x554433221100fefdccbbaa0099887766554433221100fefdccbbaa0099887766'
+  }
+];
+
+export function getWalletTransactions(walletAddress?: string): WalletTransactionRecord[] {
+  try {
+    const saved = localStorage.getItem('x402_tx_history');
+    let custom: WalletTransactionRecord[] = saved ? JSON.parse(saved) : [];
+    if (!saved) {
+      custom = SEED_TRANSACTIONS;
+      localStorage.setItem('x402_tx_history', JSON.stringify(SEED_TRANSACTIONS));
+    }
+    if (walletAddress) {
+      const filtered = custom.filter(t => t.walletAddress.toLowerCase() === walletAddress.toLowerCase() || t.walletAddress === '0x71C7656EC7ab88b098defB751B7401B5f6d8976F');
+      return filtered.length > 0 ? filtered : custom;
+    }
+    return custom;
+  } catch {
+    return SEED_TRANSACTIONS;
+  }
+}
+
+export function saveWalletTransaction(record: Partial<WalletTransactionRecord>): WalletTransactionRecord {
+  const currentAddr = record.walletAddress || localStorage.getItem('x402_connected_wallet') || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+  const currentWalletType = record.walletType || localStorage.getItem('x402_wallet_type_name') || localStorage.getItem('x402_wallet_type') || 'Trust Wallet';
+  const network = record.network || localStorage.getItem('x402_network') || 'Base Sepolia';
+
+  const newTx: WalletTransactionRecord = {
+    id: record.id || `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    txHash: record.txHash || `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`.padEnd(66, '0'),
+    walletAddress: currentAddr,
+    walletType: currentWalletType === 'trust' ? 'Trust Wallet' : currentWalletType === 'pera' ? 'Pera Wallet' : currentWalletType === 'okto' ? 'CoinDCX Okto' : currentWalletType === 'coinswitch' ? 'CoinSwitch' : currentWalletType,
+    serviceId: record.serviceId,
+    serviceName: record.serviceName || 'x402 Autonomous AI Agent Service',
+    actionType: record.actionType || 'x402 Micropayment',
+    amountFormatted: record.amountFormatted || '$0.01 (0.000003 ETH)',
+    amountWei: record.amountWei || '3000000000000',
+    status: record.status || 'SETTLED',
+    timestamp: record.timestamp || Date.now(),
+    blockNumber: record.blockNumber || (18942200 + Math.floor(Math.random() * 100)),
+    network: network,
+    prompt: record.prompt || 'Agent Service Invocation Payload',
+    receiptHash: record.receiptHash || `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`.padEnd(66, '0'),
+  };
+
+  try {
+    const saved = localStorage.getItem('x402_tx_history');
+    const existing: WalletTransactionRecord[] = saved ? JSON.parse(saved) : [...SEED_TRANSACTIONS];
+    existing.unshift(newTx);
+    localStorage.setItem('x402_tx_history', JSON.stringify(existing));
+  } catch (e) {
+    console.error('Failed to save wallet transaction to localStorage', e);
+  }
+
+  return newTx;
+}
+
+export function simulateAgentInvocation(serviceId: string, prompt: string, walletAddress?: string, walletType?: string) {
   const services = getLocalServices();
   const service = services.find(s => s.id === serviceId) || services[0];
   const isWeatherQuery = service.category === 'weather' ||
@@ -424,15 +548,34 @@ export function simulateAgentInvocation(serviceId: string, prompt: string) {
     };
   }
 
+  const receiptHash = `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`;
+  const blockNumber = 18942099 + Math.floor(Math.random() * 50);
+
   const receipt = {
     protocol: 'x402-v1',
-    receiptHash: `0x${Math.random().toString(16).substring(2)}${Math.random().toString(16).substring(2)}`,
+    receiptHash,
     status: 'SETTLED',
     amountPaidWei: service.pricePerRequestWei,
     amountPaidUsd: `$${service.priceUsd}`,
-    blockNumber: 18942099 + Math.floor(Math.random() * 50),
+    blockNumber,
     timestamp: new Date().toISOString()
   };
+
+  // Automatically record transaction in Wallet History!
+  saveWalletTransaction({
+    walletAddress: walletAddress || localStorage.getItem('x402_connected_wallet') || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    walletType: walletType || localStorage.getItem('x402_wallet_type_name') || 'Trust Wallet',
+    serviceId: service.id,
+    serviceName: service.name,
+    actionType: 'x402 Micropayment',
+    amountFormatted: service.priceFormatted,
+    amountWei: service.pricePerRequestWei,
+    status: 'SETTLED',
+    timestamp: Date.now(),
+    blockNumber,
+    prompt,
+    receiptHash
+  });
 
   return {
     status: 200,

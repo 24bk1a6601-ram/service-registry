@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Terminal, Shield, ArrowRight, CheckCircle2, AlertTriangle, Key, Zap, Lock, RefreshCw, Layers, Download, FileText } from 'lucide-react';
 import { AgentService, X402Challenge, X402PaymentReceipt } from '../types';
 import { ethers } from 'ethers';
-import { getLocalServices, simulateAgentInvocation } from '../lib/clientFallbackStore';
+import { getLocalServices, simulateAgentInvocation, saveWalletTransaction } from '../lib/clientFallbackStore';
+import { WalletApprovalModal } from './WalletApprovalModal';
 
 interface X402SandboxViewProps {
   selectedServiceId?: string;
@@ -29,6 +30,39 @@ export const X402SandboxView: React.FC<X402SandboxViewProps> = ({
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Wallet Approval Modal state
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalPendingMode, setApprovalPendingMode] = useState<'auto' | 'step2' | null>(null);
+
+  const requestAutoExecution = () => {
+    if (!walletAddress) {
+      setError('Wallet Not Connected. Please connect your Web3 wallet using the top header button before approving x402 payments.');
+      return;
+    }
+    setError(null);
+    setApprovalPendingMode('auto');
+    setShowApprovalModal(true);
+  };
+
+  const requestStep2Sign = () => {
+    if (!walletAddress) {
+      setError('Wallet Not Connected. Please connect your Web3 wallet using the top header button before approving x402 payments.');
+      return;
+    }
+    setError(null);
+    setApprovalPendingMode('step2');
+    setShowApprovalModal(true);
+  };
+
+  const handleConfirmedApproval = async () => {
+    setShowApprovalModal(false);
+    if (approvalPendingMode === 'step2') {
+      await handleSignPaymentReceipt();
+    } else {
+      await handleExecuteFullFlowFresh();
+    }
+  };
 
   useEffect(() => {
     fetchServices();
@@ -591,7 +625,7 @@ export const X402SandboxView: React.FC<X402SandboxViewProps> = ({
             
             {/* 1-Click Auto Execution Button */}
             <button
-              onClick={handleExecuteFullFlowFresh}
+              onClick={requestAutoExecution}
               disabled={loading}
               className="w-full py-3.5 rounded-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 border border-indigo-400/50 text-white shadow-xl shadow-indigo-950/60 flex items-center justify-center space-x-2 transition-all cursor-pointer font-code text-xs"
             >
@@ -620,7 +654,7 @@ export const X402SandboxView: React.FC<X402SandboxViewProps> = ({
 
             {challenge402 && (
               <button
-                onClick={handleSignPaymentReceipt}
+                onClick={requestStep2Sign}
                 disabled={loading}
                 className={`w-full py-3 rounded-2xl font-semibold flex items-center justify-center space-x-2 transition-all cursor-pointer ${
                   step === 2
@@ -1008,6 +1042,24 @@ export const X402SandboxView: React.FC<X402SandboxViewProps> = ({
         </div>
 
       </div>
+
+      {/* Wallet Approval Request Modal */}
+      <WalletApprovalModal
+        isOpen={showApprovalModal}
+        onClose={() => {
+          setShowApprovalModal(false);
+          setError('Transaction approval rejected by wallet user.');
+        }}
+        onApprove={handleConfirmedApproval}
+        title={`Approve x402 Payment for ${selectedService?.name || 'Agent Service'}`}
+        serviceName={selectedService?.name || 'AI Service'}
+        amountFormatted={selectedService?.priceFormatted || '$0.01 (0.000003 ETH)'}
+        amountWei={selectedService?.pricePerRequestWei || '3000000000000'}
+        payToAddress={selectedService?.owner || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'}
+        walletAddress={walletAddress}
+        promptPayload={prompt}
+        isLoading={loading}
+      />
 
     </div>
   );

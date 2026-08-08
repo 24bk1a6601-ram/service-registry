@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Bot, Sparkles, ShieldCheck, CheckCircle2, Zap, ArrowRight, Download, FileText, Lock, AlertCircle, RefreshCw, Key, ChevronDown, ChevronUp } from 'lucide-react';
 import { AgentService, AgentIdentity, X402Challenge, X402PaymentReceipt } from '../types';
 import { ethers } from 'ethers';
-import { simulateAgentInvocation } from '../lib/clientFallbackStore';
+import { simulateAgentInvocation, saveWalletTransaction } from '../lib/clientFallbackStore';
+import { WalletApprovalModal } from './WalletApprovalModal';
 
 interface InvokeServiceModalProps {
   isOpen: boolean;
@@ -35,6 +36,10 @@ export const InvokeServiceModal: React.FC<InvokeServiceModalProps> = ({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Wallet Approval Modal state
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalPendingMode, setApprovalPendingMode] = useState<'auto' | 'step2' | null>(null);
 
   useEffect(() => {
     if (service) {
@@ -91,6 +96,37 @@ export const InvokeServiceModal: React.FC<InvokeServiceModalProps> = ({
       setError(err.message || 'Error requesting x402 challenge');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Open Approval Modal
+  const requestAutoExecution = () => {
+    if (!walletAddress) {
+      setError('Wallet Not Connected. Please connect your Web3 wallet using the top header button before approving x402 payments.');
+      return;
+    }
+    setError(null);
+    setApprovalPendingMode('auto');
+    setShowApprovalModal(true);
+  };
+
+  const requestStep2Sign = () => {
+    if (!walletAddress) {
+      setError('Wallet Not Connected. Please connect your Web3 wallet using the top header button before approving x402 payments.');
+      return;
+    }
+    setError(null);
+    setApprovalPendingMode('step2');
+    setShowApprovalModal(true);
+  };
+
+  // Perform actual execution after user clicks Approve in WalletApprovalModal
+  const handleConfirmedApproval = async () => {
+    setShowApprovalModal(false);
+    if (approvalPendingMode === 'step2') {
+      await handleSignStep2();
+    } else {
+      await handleAutoExecuteAllSteps();
     }
   };
 
@@ -478,7 +514,7 @@ export const InvokeServiceModal: React.FC<InvokeServiceModalProps> = ({
           <div className="flex items-center justify-between text-[11px] font-bold">
             <span className="text-slate-300 uppercase tracking-wider">3-Step Payment Protocol Workflow</span>
             <button
-              onClick={handleAutoExecuteAllSteps}
+              onClick={requestAutoExecution}
               disabled={loading || !prompt.trim()}
               className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center space-x-1.5 transition-all cursor-pointer disabled:opacity-50"
             >
@@ -540,7 +576,7 @@ export const InvokeServiceModal: React.FC<InvokeServiceModalProps> = ({
 
           {/* Step 2 Action */}
           <button
-            onClick={handleSignStep2}
+            onClick={requestStep2Sign}
             disabled={loading || !challenge402}
             className={`px-4 py-2.5 rounded-xl text-xs font-code font-bold flex items-center space-x-2 transition-all cursor-pointer border ${step === 2 ? 'bg-purple-600 text-white border-purple-500 shadow-md' : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white disabled:opacity-40'}`}
           >
@@ -728,6 +764,24 @@ export const InvokeServiceModal: React.FC<InvokeServiceModalProps> = ({
         )}
 
       </div>
+
+      {/* Wallet Approval Request Modal */}
+      <WalletApprovalModal
+        isOpen={showApprovalModal}
+        onClose={() => {
+          setShowApprovalModal(false);
+          setError('Transaction approval rejected by wallet user.');
+        }}
+        onApprove={handleConfirmedApproval}
+        title={`Approve x402 Micropayment for ${service.name}`}
+        serviceName={service.name}
+        amountFormatted="$0.01 (0.000003 ETH)"
+        amountWei={challenge402?.challenge?.amountWei || '3000000000000'}
+        payToAddress={challenge402?.challenge?.payToAddress || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'}
+        walletAddress={walletAddress}
+        promptPayload={prompt}
+        isLoading={loading}
+      />
     </div>
   );
 };

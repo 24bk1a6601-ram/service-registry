@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, Cpu, Plus, Sparkles } from 'lucide-react';
-import { saveLocalAgent, saveLocalService } from '../lib/clientFallbackStore';
+import { saveLocalAgent, saveLocalService, saveWalletTransaction } from '../lib/clientFallbackStore';
 
 interface AgentRegisterModalProps {
   isOpen: boolean;
@@ -81,6 +81,18 @@ export const AgentRegisterModal: React.FC<AgentRegisterModalProps> = ({
           owner: walletAddress || '0xA987654321098765432109876543210987654321',
         });
       }
+
+      // Record in Wallet Transaction History
+      saveWalletTransaction({
+        walletAddress: walletAddress || localStorage.getItem('x402_connected_wallet') || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        walletType: localStorage.getItem('x402_wallet_type_name') || 'Trust Wallet',
+        serviceName: `Agent Registration: ${agentName}`,
+        actionType: 'Agent Registration',
+        amountFormatted: 'Gasless ($0.00)',
+        status: 'CONFIRMED',
+        prompt: `Registered DID Identity for ${agentName} (${organization || 'DAO'})`,
+        receiptHash: `0x${Math.random().toString(16).substring(2)}`
+      });
 
       setMessage({ type: 'success', text: `Agent registered! ID: ${registeredAgent.id.substring(0, 10)}...` });
       setExistingAgentId(registeredAgent.id);
